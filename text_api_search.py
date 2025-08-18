@@ -35,7 +35,7 @@ HEADERS = {
 START_LAT = 51.5055
 START_LNG = -0.0865
 PILOT_RADIUS_M = 1000.0   # 중심부 1회 수집 반경(파일럿)
-BIG_RADIUS_M   = 3500.0   # 전체 목표 커버 반경
+BIG_RADIUS_M   = 3000.0   # 전체 목표 커버 반경
 
 # 타일 계획(annulus)
 MARGIN_M = 10.0       # inner cutoff = pilot_maxdist + margin
