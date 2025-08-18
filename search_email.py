@@ -68,7 +68,7 @@ def is_valid_email(e):
 # ====== 데이터 적재 ======
 out_rows = []  # 콤마로 합친 Top 1~3
 idx = 0
-xlsx_name = "lawyer_result.xlsx"
+xlsx_name = "gallery_result.xlsx"
 df = pd.read_excel(xlsx_name)
 url_list = df["웹사이트 주소"].tolist()
 
@@ -284,7 +284,7 @@ try:
   if "이메일 주소" not in df.columns:
     df["이메일 주소"] = "-"
   df["이메일 주소"] = [r["이메일 주소"] for r in out_rows]
-  df.to_excel("lawyer_result_filled.xlsx", index=False)
-  print("엑셀 저장: lawyer_result_filled.xlsx")
+  df.to_excel("gallery_result_filled5.xlsx", index=False)
+  print("엑셀 저장: gallery_result_filled5.xlsx")
 except Exception as e:
   print("엑셀 저장 중 오류:", e)
