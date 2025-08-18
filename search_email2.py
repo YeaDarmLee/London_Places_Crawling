@@ -49,7 +49,9 @@ options.add_experimental_option("prefs", prefs)
 # ------------------------------------------------------------
 # 2) 타임아웃/네비게이션 헬퍼
 # ------------------------------------------------------------
-HARD_WAIT = 7  # 느리면 9~10으로만 올려봐
+HARD_WAIT = 7                # 느리면 9~10으로
+CHECKPOINT_EVERY = 1000      # 1000행마다 저장
+OUT_XLSX_NAME = "beauty_result_filled.xlsx"
 
 def fast_get(driver, url, wait_selector=("tag name", "body")):
   """
@@ -136,36 +138,44 @@ def start_driver():
 # ------------------------------------------------------------
 # 4) 데이터 적재
 # ------------------------------------------------------------
-out_rows = []  # 콤마로 합친 Top1~3 저장
-idx = 0
-xlsx_name = "clinic_result.xlsx"
+xlsx_name = "beauty_result.xlsx"
 df = pd.read_excel(xlsx_name)
-url_list = df["웹사이트 주소"].tolist()
+
+# 결과 컬럼 보장(바로 df에 기록 → 체크포인트 저장 가능)
+if "이메일 주소" not in df.columns:
+  df["이메일 주소"] = "-"
 
 # 최초 드라이버 기동
 driver = start_driver()
 
 # ------------------------------------------------------------
-# 5) 메인 루프(크래시 즉시 재기동 + 1회 재시도)
+# 5) 메인 루프(크래시 즉시 재기동+재시도, 1000행마다 저장)
 # ------------------------------------------------------------
-for url in url_list:
-  idx += 1
+row_no = 0
+for i in df.index:
+  row_no += 1
+  url_val = df.at[i, "웹사이트 주소"]
+
+  # 기본 출력값
   top_joined = "조회할 사이트정보 없음"
 
   # NaN 처리
-  if pd.isna(url):
-    out_rows.append({'이메일 주소': top_joined})
-    print(f"{idx} :: 조회할 사이트정보 없음")
+  if pd.isna(url_val):
+    df.at[i, "이메일 주소"] = top_joined
+    print(f"{row_no} :: 조회할 사이트정보 없음")
+    # 체크포인트 저장
+    if row_no % CHECKPOINT_EVERY == 0:
+      df.to_excel(OUT_XLSX_NAME, index=False)
+      print(f"[checkpoint] saved {row_no} rows → {OUT_XLSX_NAME}")
     continue
 
-  url = str(url).strip()
-  print(f"{idx} :: {url}")
+  url = str(url_val).strip()
+  print(f"{row_no} :: {url}")
 
   attempt = 0
-  success = False
-  appended = False
+  written = False
 
-  while attempt < 2 and not success:
+  while attempt < 2 and not written:
     try:
       # 메인 페이지
       fast_get(driver, url)
@@ -319,12 +329,12 @@ for url in url_list:
         top_emails = [e for _, e in ranked[:3]]
         top_joined = ", ".join(top_emails)
       else:
-        top_joined = "조회결과 없음"
+        top_joined = "-"
 
-      out_rows.append({'이메일 주소': top_joined})
+      # 결과 즉시 df에 기록
+      df.at[i, "이메일 주소"] = top_joined
       print(f"  -> TOP3: {top_joined}")
-      appended = True
-      success = True
+      written = True
 
     except WebDriverException as e:
       msg = str(e).lower()
@@ -337,27 +347,28 @@ for url in url_list:
           pass
         driver = start_driver()
         attempt += 1
-        if attempt >= 2 and not appended:
-          out_rows.append({'이메일 주소': '조회 중 오류'})
-          appended = True
+        if attempt >= 2 and not written:
+          df.at[i, "이메일 주소"] = "조회 중 오류"
+          written = True
         continue
       else:
-        if not appended:
-          out_rows.append({'이메일 주소': '조회 중 오류'})
-          appended = True
+        if not written:
+          df.at[i, "이메일 주소"] = "조회 중 오류"
+          written = True
         break
-    except Exception as e:
-      if not appended:
-        out_rows.append({'이메일 주소': '조회 중 오류'})
-        appended = True
+    except Exception:
+      if not written:
+        df.at[i, "이메일 주소"] = "조회 중 오류"
+        written = True
       break
 
-  if not appended:
-    # 방어적: 어떤 이유로도 미기록 상태면 오류로 채움
-    out_rows.append({'이메일 주소': '조회 중 오류'})
+  # 체크포인트 저장 (1000행마다)
+  if row_no % CHECKPOINT_EVERY == 0:
+    df.to_excel(OUT_XLSX_NAME, index=False)
+    print(f"[checkpoint] saved {row_no} rows → {OUT_XLSX_NAME}")
 
 # ------------------------------------------------------------
-# 6) 드라이버 종료 & 저장
+# 6) 드라이버 종료 & 최종 저장
 # ------------------------------------------------------------
 try:
   driver.quit()
@@ -365,10 +376,7 @@ except Exception:
   pass
 
 try:
-  if "이메일 주소" not in df.columns:
-    df["이메일 주소"] = "-"
-  df["이메일 주소"] = [r["이메일 주소"] for r in out_rows]
-  df.to_excel("clinic_result_filled.xlsx", index=False)
-  print("엑셀 저장: clinic_result_filled.xlsx")
+  df.to_excel(OUT_XLSX_NAME, index=False)
+  print(f"최종 저장: {OUT_XLSX_NAME}")
 except Exception as e:
   print("엑셀 저장 중 오류:", e)
